@@ -1,21 +1,6 @@
-%main code working model
-clc
-clearvars
-nelx=20;
-nely=20;
-nelz=20;
-Lx=1;Ly=1;
-penalK=3;
-penalG=3;
-rmin=2;
-eta=0.5;
-beta=2;
-ft=2;
-ftBC='N';
-ocPar=[0.01,0.1,1.2];
-maxit=500;
-xInitial =[];
-prSel={['V','C'],2.0};
+%The code is developed from original code topBuck250.m developed in the paper - F. Ferrari, O. Sigmund, and J. K. Guest, “Topology optimization with linearized buckling criteria in 250 lines of Matlab,” Struct Multidisc Optim, vol. 63, no. 6, pp. 3045–3066, Jun. 2021, doi: 10.1007/s00158-021-02854-x.
+%main code
+function topBuck3D(nelx,nely,nelz,penalK,rmin,ft,ftBC,eta,beta,maxit,ocPar,Lx,Ly,penalG,nEig,pAgg,prSel,fil)
 % ---------------------------- PRE. 1) MATERIAL AND CONTINUATION PARAMETERS
 [E0,Emin,nu] = deal(1,1e-9,0.3);                                           % Young's moduli & Poisson's ratio
 penalCntK = {25,1,25,0.25};                                                 % continuation scheme on K-penal
@@ -120,6 +105,7 @@ if any(prSel{1}=='B') % >>>>>>>>>>>>>>>> PERFORM ONLY IF BUCKLING IS ACTIVE #B#
     dKS = @(p,v,dv)sum(exp(p.*(v-max(v)))'.*dv,2)./sum(exp(p.*(v-max(v))));% derivative of the KS function
 end % <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #B#
 % ----------------------------- PRE. 3) LOADS, SUPPORTS AND PASSIVE DOMAINS
+% to be changed for different structures and cell sizes. This is for SC lattice of 20 x 20 x 20 size
 tkx=4;
 tky=4;
 tkz=4;
@@ -133,33 +119,25 @@ lcDofix = unique(cMat(unique([elNrs(: , [1:tkz,end-tkz+1:end],end), ...
 fixed = unique(cMat(unique([elNrs(: ,[1:tkz,end-tkz+1:end],1),...     %node numbers on BC is 1,4,5,8 all dofs
      (elNrs([1:tky,end-tky+1:end] , :,1))']),[1:3,10:15,22:24]));
 edgedof=unique(cMat(unique([elNrs(: , [1,end],end); (elNrs([1,end], : ,end))']),[4,7,16,19]));
-modF = 2e-3;%1/(length(lcDof)-1);                                             % modulus of the force density
+modF = 2e-3;                                                                % modulus of the force density
 F = fsparse(lcDof(:),1,-modF,[nDof,1]);                                     % define load vector
 F(edgedof(:)) = F(lcDof(1))/2;                                            % consistent load on end nodes
 
-% column borders
-pa1 = elNrs([1,end],[1,end] ,:);%outer 1mm thickness
-pa2 = elNrs([1,tky,end-tky+1,end], [1,tkz,end-tkz+1,end],:);% outer and insides
-pa21 = elNrs([1,end], [1,end] ,:);% outer and insides
-pa21a = elNrs([1,end], [tkz,end-tkz+1] ,:);% outer and insides
-pa21b = elNrs([tky,end-tky+1], [1,end] ,:);% outer and insides
-pa22 = elNrs([1:2,tky-1:tky,end-tky+1:end-tky+2,end-1:end], [1:2,tkz-1:tkz,end-tkz+1:end-tkz+2,end-1:end] ,:);% outer and insides
-% beams
-pa5 = elNrs(:, [1:tkz,end-tkz+1:end], [1:tkxb,end-tkxb+1:end]);%top bottom beams 4mm thickness
-pa6 = elNrs([1:tky,end-tky+1:end],:, [1:tkxb,end-tkxb+1:end]);%front back beams 4mm thickness
+pa1 = elNrs([1,end], [1,end] ,:);                        % outer edge
+pa2 = elNrs([1,end], [tkz,end-tkz+1] ,:);                % outer and insides
+pa3 = elNrs([tky,end-tky+1], [1,end] ,:);                % outer and insides
+pa4 = elNrs([1:2,tky-1:tky,end-tky+1:end-tky+2,end-1:end], [1:2,tkz-1:tkz,end-tkz+1:end-tkz+2,end-1:end] ,:);                          % inner edge beams
+pa5 = elNrs(:, [1:tkz,end-tkz+1:end], [1:tkxb,end-tkxb+1:end]);%top bottom beams 
+pa6 = elNrs([1:tky,end-tky+1:end],:, [1:tkxb,end-tkxb+1:end]);%front back beams 
 %center and faces void
-pa40 = elNrs(tky+1:end-tky, tkz+1:end-tkz, tkxb+1:end-tkxb);% interior void vol
-pa41 = elNrs(tky+1:end-tky, tkz+1:end-tkz, end-tkxb:end);% interior void vol
-pa42 = elNrs(tky+1:end-tky, end-tkz:end, tkxb+1:end-tkxb);% interior void vol
-pa43 = elNrs(end-tky:end, tkz+1:end-tkz, tkxb+1:end-tkxb);% interior void vol
-pa44 = elNrs(1:tky, tkz+1:end-tkz, tkxb+1:end-tkxb);% interior void vol
-pa45 = elNrs(tky+1:end-tky, 1:tkz, tkxb+1:end-tkxb);% interior void vol
-pa46 = elNrs(tky+1:end-tky, tkz+1:end-tkz, 1:tkxb);% interior void vol
-%Case1: none
-[pasS,pasV] = deal(unique([pa21(:);pa21a(:);pa21b(:);pa5(:);pa6(:)]),unique([pa40(:);pa41(:);...     % define passive domains
-    pa42(:);pa43(:);pa44(:);pa45(:);pa46(:)]));
+pa7 = elNrs(tky+1:end-tky, tkz+1:end-tkz, [1:tkxb end-tkxb:end tkxb+1:end-tkxb]);                                              % interior void vol
+pa8 = elNrs(tky+1:end-tky, [1:tkz end-tkz:end], tkxb+1:end-tkxb);
+pa9 = elNrs([1:tky end-tky:end], tkz+1:end-tkz, tkxb+1:end-tkxb);
+
+[pasS,pasV] = deal(unique([pa1(:);pa2(:);pa3(:);pa5(:);pa6(:)]),unique([... 
+    pa7(:);pa8(:);pa9(:)]));                     % define passive domains
+
 free = setdiff(1:nDof, unique([fixed;lcDofix]));                                             % set of free DOFs
-%free = setdiff(1:nDof, fixed); 
 act = setdiff((1:nEl)',union(pasS(:),pasV(:)));                            % set of active design variables
 
 % --------------------------------------- PRE. 4) DEFINE IMPLICIT FUNCTIONS
@@ -272,6 +250,7 @@ while ch > 1e-6 && loop < maxit
   patch(isocaps(isovals, .5),'FaceColor','r','EdgeColor','none');
   drawnow; view( [ 145, 25 ] ); axis equal tight off; %cla();
 end
+end
 %%
 function [ x, as, lmid ] = ocUpdate( loop, xT, dg0, g1, dg1, ocPar, xOld, xOld1, ...
     as, beta, restartAs )
@@ -312,17 +291,19 @@ end
 %
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% This Matlab code was written by F. Ferrari, O. Sigmund                   %
+% This Matlab code was originally written by F. Ferrari, O. Sigmund        %
 % Dept. of Solid Mechanics-Technical University of Denmark,2800 Lyngby (DK)%
-% Please send your comments to: feferr@mek.dtu.dk                          %
+% edited by A. Viswanath of Khalifa University for 3D changes.             %
+% Please send your comments to: asha.viswanath@gmail.com                   %
 %                                                                          %
 % The code is intended for educational purposes and theoretical details    %
 % are discussed in the paper Ferrari, F. Sigmund, O. - A new generation 99 %
 % line Matlab code for compliance Topology Optimization and its extension  %
-% to 3D, SMO, 2020                                                         %
-%                                                                          %
-% The code as well as a postscript version of the paper can be             %
-% downloaded from the web-site: http://www.topopt.dtu.dk                   %
+% to 3D, SMO, 2020    and                                                  %
+% Asha Viswanath, Wesley James Cantwell, Kamran Ahmed Khan, Enhancing      %
+% Buckling Resistance of Strut Lattice Structures via Three-Dimensional    % 
+% Topology Optimization, Journal of Computational Design and Engineering,  % 
+% 2025                                                                     %
 %                                                                          %
 % Disclaimer:                                                              %
 % The authors reserves all rights but do not guaranty that the code is     %

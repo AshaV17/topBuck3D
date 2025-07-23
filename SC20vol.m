@@ -158,8 +158,12 @@ dHs = Hs;
 U = zeros(nDof,1);                                                           % " " of size nDofx1 
 dV(act,1) = 1/nEl/volfrac;                                                         % derivative of volume fraction
 [xpOld,loop,restartAs,ch,plotL,plotR,muVec] = deal(0,0,0,1,[],[],[]);      % misc array & parameters
-x(act) = volfrac;%(volfrac*(nEl-length(pasV))-length(pasS))/length(act);        % volume fraction on "active" set
-x(pasS) = 1;                                                           % set x=1 on "passive solid" set
+if nargin > 17
+  load(fil); x = xInitial;                                   % initialize design from saved data
+else
+    x(act) = volfrac;%(volfrac*(nEl-length(pasV))-length(pasS))/length(act);        % volume fraction on "active" set
+    x(pasS) = 1;                                                           % set x=1 on "passive solid" set
+end
 xPhys = x; clear iG jG dx dy;                                        % initialize xPhys and free memory
 % ================================================= START OPTIMIZATION LOOP
 while ch > 1e-6 && loop < maxit
@@ -290,6 +294,8 @@ elseif psiDual( lmUp ) > 0                 % constraint cannot be fulfilled
 end
 %
 end
+% to call function, use topBuck3D(20,20,20,3,1.5,2,'N',0.5,2,500,[0.1,0.7,1.2],1,1,3,12,200,{['B','C','V'],[2.5,0.15]},'ig.mat') 
+% after running topBuck3D(20,20,20,3,1.5,2,'N',0.5,2,500,[0.1,0.7,1.2],1,1,[],[],[],{['V','C'],2.5}) and saving densities in 'ig.mat' 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % This Matlab code was originally written by F. Ferrari, O. Sigmund        %
 % Dept. of Solid Mechanics-Technical University of Denmark,2800 Lyngby (DK)%
